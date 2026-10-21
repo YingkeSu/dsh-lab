@@ -42,7 +42,7 @@ function fakeSpawn({ host, command }) {
 
 test('prompting a remote project streams its session events back to the caller', async () => {
   const manager = createManager({
-    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: 'dsh' }],
+    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: '/fake/dsh' }],
     spawn: fakeSpawn,
     runRemote: async () => '',
   });
@@ -62,7 +62,7 @@ test('prompting a remote project streams its session events back to the caller',
 test('prompting a session listed from remote history resumes it first', async () => {
   const order = [];
   const manager = createManager({
-    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: 'dsh' }],
+    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: '/fake/dsh' }],
     spawn: ({ host, command }) => {
       const toServer = new PassThrough();
       const fromServer = new PassThrough();
@@ -95,7 +95,7 @@ test('prompting a session listed from remote history resumes it first', async ()
 test('concurrent connects to the same project share one ssh runtime', async () => {
   let spawns = 0;
   const manager = createManager({
-    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: 'dsh' }],
+    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: '/fake/dsh' }],
     spawn: ({ host, command }) => {
       spawns += 1;
       const toServer = new PassThrough();
@@ -113,9 +113,36 @@ test('concurrent connects to the same project share one ssh runtime', async () =
 
 test('readHistory rejects unsafe session ids before touching the remote host', async () => {
   const manager = createManager({
-    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: 'dsh' }],
+    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: '/fake/dsh' }],
     spawn: () => { throw new Error('should not connect'); },
     runRemote: async () => { throw new Error('should not run'); },
   });
   await assert.rejects(manager.readHistory('mb', '/p', '../escape'), /invalid remote session id/);
+});
+
+test('a host without dshCommand connects through the detected remote dsh', async () => {
+  let spawnedCommand = '';
+  const manager = createManager({
+    hosts: [{ id: 'mb', ssh: 'macbook' }],
+    detectDsh: async () => '/Users/me/bin/dsh',
+    spawn: ({ host, command }) => {
+      spawnedCommand = command;
+      const toServer = new PassThrough();
+      const fromServer = new PassThrough();
+      fakeRuntime(toServer, fromServer);
+      return { child: { stdin: toServer, stdout: fromServer, stderr: new PassThrough(), kill() {}, on() {}, once() {} }, argv: ['ssh', host, command] };
+    },
+  });
+  await manager.connect('mb', '/p');
+  assert.equal(spawnedCommand, '/Users/me/bin/dsh --profile sdk');
+  manager.dispose();
+});
+
+test('connect explains how to fix a remote host without a usable dsh', async () => {
+  const manager = createManager({
+    hosts: [{ id: 'mb', ssh: 'macbook' }],
+    detectDsh: async () => null,
+    spawn: () => { throw new Error('should not spawn'); },
+  });
+  await assert.rejects(manager.connect('mb', '/p'), /remote dsh not found on mb: install dsh on the remote host, or set dshCommand/);
 });

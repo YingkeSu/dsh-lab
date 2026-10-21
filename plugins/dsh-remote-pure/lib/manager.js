@@ -4,6 +4,7 @@
  * local side holds chat state for the panel and reads history on demand.
  */
 import { randomUUID } from 'node:crypto';
+import { createDshResolver } from './dsh-command.js';
 import { createSdkClient } from './sdk-client.js';
 import { decodeSessionLog, normalizeRemotePath, projectDirName, readMessages } from './remote-log.js';
 import { shellQuote, sshRun, sshSpawn } from './ssh.js';
@@ -26,9 +27,10 @@ function assertSessionId(sessionId) {
   }
 }
 
-export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun }) {
+export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun, detectDsh, autoDetectDsh = true }) {
   const byId = new Map(hosts.map((host) => [host.id, host]));
   const connections = new Map();
+  const resolveDsh = createDshResolver({ runRemote, detectDsh, autoDetectDsh });
   const host = (hostId) => {
     const found = byId.get(hostId);
     if (found === undefined) throw new Error(`unknown remote host: ${hostId}`);
@@ -42,31 +44,34 @@ export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun }) {
     const id = key(hostId, path);
     const existing = connections.get(id);
     if (existing !== undefined) return existing.ready;
-    const remoteCommand = `${target.dshCommand ?? 'dsh'} --profile sdk`;
-    const { child } = spawn({ host: target, ssh: target.ssh, target, command: remoteCommand, argv: [] });
-    const client = createSdkClient({ input: child.stdout, output: child.stdin });
-    const connection = { info: { hostId, project: path }, client, child, sessions: new Map(), stderr: '', closed: false, ready: null };
-    // Register before awaiting so a concurrent connect shares this attempt and
-    // dispose/teardown can reach the child; a closed connection is dropped so a
-    // later connect starts fresh instead of returning a dead handle.
+    // Register before any await so concurrent connects share one runtime and a
+    // teardown during detection can still reach this attempt.
+    const connection = { info: { hostId, project: path }, client: null, child: null, sessions: new Map(), stderr: '', closed: false, ready: null };
     connections.set(id, connection);
     const drop = () => {
       connection.closed = true;
       if (connections.get(id) === connection) connections.delete(id);
     };
-    child.on?.('error', drop);
-    child.stdin?.on?.('error', drop);
-    client.onClose(drop);
-    child.stderr?.setEncoding?.('utf8');
-    child.stderr?.on?.('data', (chunk) => { connection.stderr = (connection.stderr + chunk).slice(-4000); });
-    const route = { provider: target.provider ?? 'deepseek-official', model: target.model ?? 'deepseek-flash' };
+    const cleanup = () => {
+      connection.client?.close();
+      connection.child?.kill?.('SIGTERM');
+    };
     connection.ready = (async () => {
+      const command = await resolveDsh(target);
+      if (connection.closed) throw new Error('connection closed during startup');
+      const { child } = spawn({ host: target, ssh: target.ssh, target, command: `${command} --profile sdk`, argv: [] });
+      const client = createSdkClient({ input: child.stdout, output: child.stdin });
+      connection.child = child;
+      connection.client = client;
+      child.on?.('error', drop);
+      child.stdin?.on?.('error', drop);
+      client.onClose(drop);
+      child.stderr?.setEncoding?.('utf8');
+      child.stderr?.on?.('data', (chunk) => { connection.stderr = (connection.stderr + chunk).slice(-4000); });
+      const route = { provider: target.provider ?? 'deepseek-official', model: target.model ?? 'deepseek-flash' };
       try {
         await client.request('initialize', { cwd: path, ...route }, target.connectTimeoutMs ?? 30000);
       } catch (error) {
-        drop();
-        client.close();
-        child.kill?.('SIGTERM');
         throw new Error(`remote initialize failed (${hostId}:${path}): ${error.message}${connection.stderr ? `\n${connection.stderr.slice(-500)}` : ''}`);
       }
       client.onNotification((method, params) => {
@@ -84,7 +89,11 @@ export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun }) {
         }
       });
       return connection.info;
-    })();
+    })().catch((error) => {
+      drop();
+      cleanup();
+      throw error;
+    });
     return connection.ready;
   }
 

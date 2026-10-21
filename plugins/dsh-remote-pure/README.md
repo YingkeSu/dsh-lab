@@ -40,6 +40,14 @@ Then add hosts to the profile's `cordis.patch.yml` (the bundle row is `remote-pu
 The remote runtime needs its own model credentials, and non-interactive SSH must work
 (key/agent). Linux and macOS are supported.
 
+**Remote `dsh` discovery**: SSH's non-interactive shell usually misses the user's interactive
+`PATH`, so a bare `dsh` can fail with `command not found` even where the terminal works. When a host
+has no `dshCommand` (or it is exactly `dsh`), the plugin probes the remote host first: `dsh` on the
+SSH `PATH`, `~/bin/dsh`, Homebrew, `/usr/local/bin`, `~/.local/bin`, then a developer checkout at
+`~/labs/ds/*/apps/cli/lib/bin.js` invoked through an absolute `node`. The result is cached for five
+minutes; an explicit `dshCommand` skips the probe, and `autoDetectDsh: false` turns it off. When
+nothing is found the connection error names the host and asks for `dshCommand`.
+
 **Host dropdown**: every `Host <alias>` in your local `~/.ssh/config` is offered automatically,
 and `ssh <alias>` reuses that entry's `User`/`Port`/`IdentityFile`/agent setup, so existing keys work
 without extra configuration. Explicit `hosts` rows win over a discovered alias with the same id. Set
