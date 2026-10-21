@@ -55,6 +55,14 @@ window.__ModuleLoader__.load({
       '.rp-picker-list{flex:1;overflow:auto;display:flex;flex-direction:column;padding:4px 0}',
       '.rp-picker-row{text-align:left;background:transparent;border:0;color:inherit;font:inherit;font-size:13px;padding:7px 8px;border-radius:6px;cursor:pointer}',
       '.rp-picker-row:hover{background:var(--dsw-alias-bg-elevated,rgba(127,127,127,.12))}',
+      '.rp-tabs{display:flex;gap:4px;margin-left:8px}',
+      '.rp-tab{border:1px solid transparent;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:12px;padding:4px 10px;cursor:pointer;opacity:.65}',
+      '.rp-tab:hover{opacity:1}',
+      '.rp-tab.rp-tab-active{opacity:1;border-color:var(--dsw-alias-border-subtle,rgba(127,127,127,.4));background:var(--dsw-alias-bg-elevated,rgba(127,127,127,.12))}',
+      '.rp-term{flex:1;display:flex;flex-direction:column;min-height:0;padding:10px 14px;gap:8px}',
+      '.rp-term-box{flex:1;min-height:0;border:1px solid var(--dsw-alias-border-subtle,rgba(127,127,127,.32));border-radius:8px;padding:6px;background:var(--dsw-alias-bg-elevated,rgba(0,0,0,.18));overflow:hidden;text-align:left}',
+      '.rp-term-box .xterm{height:100%}',
+      '.rp-picker-new{display:flex;gap:8px;align-items:center}',
       '@keyframes rp-pulse{0%,100%{opacity:1}50%{opacity:.25}}',
     ].join('\n');
 
@@ -91,6 +99,46 @@ window.__ModuleLoader__.load({
       }
     }
 
+    var LAST_KEY = 'remote-pure:last';
+    function readLast() {
+      try {
+        var raw = window.localStorage.getItem(LAST_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    function writeLast(pair) {
+      try {
+        window.localStorage.setItem(LAST_KEY, JSON.stringify(pair));
+      } catch (e) {
+        // storage unavailable
+      }
+    }
+
+    var xtermPromise = null;
+    function loadXterm() {
+      if (xtermPromise) return xtermPromise;
+      xtermPromise = new Promise(function (resolve, reject) {
+        var css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = '/remote-pure/assets/xterm.css';
+        document.head.appendChild(css);
+        var core = document.createElement('script');
+        core.src = '/remote-pure/assets/xterm.js';
+        core.onerror = function () { reject(new Error('xterm 资源加载失败')); };
+        core.onload = function () {
+          var fit = document.createElement('script');
+          fit.src = '/remote-pure/assets/addon-fit.js';
+          fit.onerror = function () { reject(new Error('xterm 插件加载失败')); };
+          fit.onload = function () { resolve({ Terminal: window.Terminal, FitAddon: window.FitAddon && window.FitAddon.FitAddon }); };
+          document.head.appendChild(fit);
+        };
+        document.head.appendChild(core);
+      });
+      return xtermPromise;
+    }
+
     function Icon(props) {
       var size = props && props.size ? props.size : 18;
       return react.createElement(
@@ -99,6 +147,68 @@ window.__ModuleLoader__.load({
         react.createElement('rect', { x: 2.5, y: 4.5, width: 19, height: 12, rx: 2 }),
         react.createElement('path', { d: 'M8 20.5h8M12 16.5v4' }),
         react.createElement('path', { d: 'M7.5 9.2h4.2a2.3 2.3 0 0 1 0 4.6H9.4M9.4 13.8 7.6 15.6l1.8 1.8' }),
+      );
+    }
+
+    function TerminalView(props) {
+      var box = react.useRef(null);
+      var errPair = react.useState('');
+      var error = errPair[0], setError = errPair[1];
+      var hostId = props.hostId || '';
+
+      react.useEffect(function () {
+        if (hostId === '') return undefined;
+        var disposed = false;
+        var term = null;
+        var fit = null;
+        var ws = null;
+        var observer = null;
+        var sendResize = function () { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })); };
+        loadXterm().then(function (lib) {
+          if (disposed) return;
+          term = new lib.Terminal({
+            convertEol: true,
+            fontSize: 12,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            theme: { background: 'rgba(0,0,0,0)' },
+          });
+          fit = new lib.FitAddon();
+          term.loadAddon(fit);
+          term.open(box.current);
+          fit.fit();
+          var proto = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+          ws = new WebSocket(proto + window.location.host + '/remote-pure/terminal?hostId=' + encodeURIComponent(hostId) + '&cols=' + term.cols + '&rows=' + term.rows);
+          ws.onopen = function () { term.focus(); sendResize(); };
+          ws.onmessage = function (event) {
+            var data = event.data;
+            if (typeof data === 'string' && data.charAt(0) === '{') {
+              try {
+                var message = JSON.parse(data);
+                if (message.type === 'error') { setError(message.message); return; }
+              } catch (e) { /* plain terminal output starting with { */ }
+            }
+            term.write(data);
+          };
+          ws.onerror = function () { setError('终端连接失败'); };
+          ws.onclose = function () { if (!disposed) setError('终端已断开'); };
+          term.onData(function (data) { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'input', data: data })); });
+          observer = new ResizeObserver(function () { fit.fit(); sendResize(); });
+          observer.observe(box.current);
+        }).catch(function (e) { setError(e.message); });
+        return function () {
+          disposed = true;
+          if (observer) observer.disconnect();
+          if (ws) ws.close();
+          if (term) term.dispose();
+        };
+      }, [hostId]);
+
+      return react.createElement(
+        'div',
+        { className: 'rp-term' },
+        hostId === '' ? react.createElement('div', { className: 'rp-empty' }, '先选择一台 SSH 主机，再打开终端。') : null,
+        error === '' ? null : react.createElement('div', { className: 'rp-error' }, error),
+        react.createElement('div', { className: 'rp-term-box', ref: box }),
       );
     }
 
@@ -129,6 +239,10 @@ window.__ModuleLoader__.load({
       var picker = pickerPair[0], setPicker = pickerPair[1];
       var recentPair = react.useState(readRecents);
       var recents = recentPair[0], setRecents = recentPair[1];
+      var tabPair = react.useState('chat');
+      var tab = tabPair[0], setTab = tabPair[1];
+      var newDirPair = react.useState('');
+      var newDir = newDirPair[0], setNewDir = newDirPair[1];
 
       var target = connection || { hostId: hostId, project: project };
       var call = function (path, extra) {
@@ -139,7 +253,13 @@ window.__ModuleLoader__.load({
         api('/hosts', {}).then(function (value) {
           var list = value.hosts || [];
           setHosts(list);
-          if (list.length > 0) setHostId(list[0].id);
+          var last = readLast();
+          if (last && list.some(function (host) { return host.id === last.hostId; })) {
+            setHostId(last.hostId);
+            setProject(last.path || '');
+          } else if (list.length > 0) {
+            setHostId(list[0].id);
+          }
         }).catch(function (e) { setError(e.message); });
       }, []);
 
@@ -171,6 +291,7 @@ window.__ModuleLoader__.load({
               .slice(0, 8);
             setRecents(nextRecents);
             writeRecents(nextRecents);
+            writeLast({ hostId: info.hostId, path: info.project });
             return api('/sessions', { hostId: info.hostId, project: info.project }).then(function (value) {
               var list = value.sessions || [];
               setSessions(list);
@@ -227,6 +348,18 @@ window.__ModuleLoader__.load({
       function openPicker() {
         if (hostId === '' || connection !== null) return;
         browse(project.trim() === '' ? '~' : project);
+      }
+
+      function createDir() {
+        var name = newDir.trim();
+        if (name === '' || picker === null) return;
+        var path = (picker.path === '/' ? '' : picker.path) + '/' + name;
+        api('/mkdir', { hostId: hostId, path: path }).then(function (value) {
+          setNewDir('');
+          browse(value.path);
+        }).catch(function (e) {
+          setPicker({ path: picker.path, dirs: picker.dirs, parent: picker.parent, loading: false, error: e.message });
+        });
       }
 
       function send() {
@@ -291,6 +424,12 @@ window.__ModuleLoader__.load({
             : react.createElement('button', { className: 'rp-btn', onClick: disconnect }, '断开'),
           react.createElement('span', { className: 'rp-status', title: hostHint }, connection === null ? (hosts.length === 0 ? '未配置主机' : '未连接') : (selectedHost ? (selectedHost.label || selectedHost.id) : connection.hostId) + ':' + connection.project),
           running ? react.createElement('span', { className: 'rp-run' }, react.createElement('span', { className: 'rp-dot' }), '远端运行中') : null,
+          react.createElement(
+            'div',
+            { className: 'rp-tabs' },
+            react.createElement('button', { className: 'rp-tab' + (tab === 'chat' ? ' rp-tab-active' : ''), onClick: function () { setTab('chat'); } }, '会话'),
+            react.createElement('button', { className: 'rp-tab' + (tab === 'terminal' ? ' rp-tab-active' : ''), onClick: function () { setTab('terminal'); } }, '终端'),
+          ),
         ),
         recents.length === 0 ? null : react.createElement(
           'div',
@@ -311,7 +450,9 @@ window.__ModuleLoader__.load({
           }),
         ),
         error === '' ? null : react.createElement('div', { className: 'rp-error' }, error),
-        react.createElement(
+        tab === 'terminal'
+          ? react.createElement('div', { className: 'rp-term' }, react.createElement(TerminalView, { hostId: connection ? connection.hostId : hostId }))
+          : react.createElement(
           'div',
           { className: 'rp-body' },
           react.createElement(
@@ -394,6 +535,18 @@ window.__ModuleLoader__.load({
             react.createElement('span', { className: 'rp-picker-path', title: picker.path }, picker.path),
             react.createElement('button', { className: 'rp-btn', onClick: function () { setPicker(null); } }, '取消'),
             react.createElement('button', { className: 'rp-btn rp-primary', onClick: function () { setProject(picker.path); setPicker(null); } }, '选择此目录'),
+          ),
+          react.createElement(
+            'div',
+            { className: 'rp-picker-new' },
+            react.createElement('input', {
+              className: 'rp-input',
+              placeholder: '新目录名',
+              value: newDir,
+              onChange: function (event) { setNewDir(event.target.value); },
+              onKeyDown: function (event) { if (event.key === 'Enter') createDir(); },
+            }),
+            react.createElement('button', { className: 'rp-btn', disabled: newDir.trim() === '', onClick: createDir }, '新建并进入'),
           ),
           picker.error === '' ? null : react.createElement('div', { className: 'rp-error' }, picker.error),
           react.createElement(

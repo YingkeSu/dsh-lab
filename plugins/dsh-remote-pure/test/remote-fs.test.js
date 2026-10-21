@@ -20,3 +20,17 @@ test('list resolves the directory and returns only subdirectories', async () => 
   assert.deepEqual(result.dirs, ['node_modules', 'src', '.hidden']);
   assert.match(calls[0], /^cd ~'\/app'/);
 });
+
+
+test('mkdir creates the directory over ssh and reports the resolved path', async () => {
+  const commands = [];
+  const fs = createRemoteFs({
+    hosts,
+    run: async ({ command }) => {
+      commands.push(command);
+      return '/home/me/new-project\n';
+    },
+  });
+  assert.equal(await fs.mkdir('mb', '~/new-project'), '/home/me/new-project');
+  assert.match(commands[0], /^mkdir -p ~'\/new-project' && cd ~'\/new-project' && pwd$/);
+});

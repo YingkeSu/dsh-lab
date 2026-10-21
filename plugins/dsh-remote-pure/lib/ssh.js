@@ -17,11 +17,11 @@ const BASE_ARGS = [
 export const shellQuote = (value) => `'${String(value).replaceAll("'", `'\\''`)}'`;
 
 /** Build the ssh command line for a host; local keys/agent/config stay in charge. */
-export function sshArgs(target) {
+export function sshArgs(target, extraArgs = []) {
   const args = [...BASE_ARGS];
   if (target.identityFile) args.push('-i', target.identityFile);
   if (Array.isArray(target.sshOptions)) args.push(...target.sshOptions);
-  args.push(target.ssh);
+  args.push(...extraArgs, target.ssh);
   return args;
 }
 

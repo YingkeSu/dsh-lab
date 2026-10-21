@@ -8,11 +8,12 @@ import { createManager } from './lib/manager.js';
 import { createApi } from './lib/http-api.js';
 import { createRemoteFs } from './lib/remote-fs.js';
 import { mergeHosts, readSshConfig } from './lib/ssh-config.js';
+import { registerTerminal, registerTerminalAssets } from './lib/terminal.js';
 
 export const name = 'remote-pure';
 
-/** The web server owns the route table this plugin registers into. */
-export const inject = ['webServer'];
+/** The web server serves the panel; the subprocess service owns terminal PTYs. */
+export const inject = ['webServer', 'subprocess'];
 
 /** Read explicit host rows from the profile config. */
 function readHosts(config) {
@@ -55,4 +56,9 @@ export function apply(ctx, config = {}) {
     'remote-pure: routes',
   );
   ctx.effect(() => () => manager.dispose(), 'remote-pure: connections');
+  ctx.effect(() => registerTerminalAssets({ webServer: ctx.webServer }), 'remote-pure: terminal assets');
+  ctx.effect(
+    () => registerTerminal({ webServer: ctx.webServer, subprocess: ctx.subprocess, hosts }),
+    'remote-pure: terminal bridge',
+  );
 }

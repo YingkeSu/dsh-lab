@@ -65,9 +65,16 @@ project's durable sessions (read from the remote store on demand), the right col
 Selecting an old session resumes it by id through the SDK before its first prompt.
 
 **Project picker**: **浏览** opens a remote directory browser (`cd <path> && pwd && ls -1Ap` over SSH),
-with `~`, `..`, and "选择此目录"; it reads only, never mutates the remote tree. The last eight
-`(host, path)` pairs you connected to are kept in the browser's `localStorage` and shown as one-click
-chips, so repeat projects need no typing. Browsing works before any project is connected.
+with `~`, `..`, "选择此目录", and "新建并进入" (creates the directory remotely with `mkdir -p`). The last
+eight `(host, path)` pairs you connected to are kept in the browser's `localStorage` and shown as
+one-click chips, so repeat projects need no typing; the last project is restored on reload. Browsing
+works before any project is connected.
+
+**Remote terminal**: the **终端** tab opens an xterm.js terminal on the selected SSH host. The Host
+half bridges the browser WebSocket to `ssh -tt <alias>` running under DSH's own PTY primitive, so
+resize, colors, and full-screen programs work while authentication stays with the local OpenSSH
+config, keys, and agent — no ssh2 dependency and no stored passwords. `ws`, `@xterm/xterm`, and
+`@xterm/addon-fit` are the terminal dependencies; their browser assets are served by the plugin.
 
 ## Verification
 

@@ -21,6 +21,7 @@ function request(url, body) {
 const calls = [];
 const fakeFs = {
   list: async (hostId, path) => ({ path, parent: '/home', dirs: ['app'] }),
+  mkdir: async (hostId, path) => path,
 };
 
 const fakeManager = {
@@ -47,6 +48,7 @@ test('api routes connect, prompt, history and rejects unknown endpoints', async 
   assert.deepEqual(await api('/remote-pure/api/prompt', { hostId: 'mb', project: '/p', sessionId: 's', text: 'go' }), { messageId: 'm1' });
   assert.deepEqual(await api('/remote-pure/api/history', { hostId: 'mb', project: '/p', sessionId: 's' }), { messages: [{ role: 'user', text: 'hi', time: 1 }] });
   assert.deepEqual(await api('/remote-pure/api/browse', { hostId: 'mb', path: '/home' }), { path: '/home', parent: '/home', dirs: ['app'] });
+  assert.deepEqual(await api('/remote-pure/api/mkdir', { hostId: 'mb', path: '~/new' }), { path: '~/new' });
   const missing = await api('/remote-pure/api/nope', {});
   assert.equal(missing.error.code, 'unknown-endpoint');
 });

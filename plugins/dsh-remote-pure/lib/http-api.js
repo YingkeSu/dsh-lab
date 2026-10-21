@@ -61,6 +61,7 @@ export function createApi({ manager, hosts, fs }) {
     ),
     '/state': async (body) => manager.sessionState(str(body, 'hostId'), str(body, 'project'), str(body, 'sessionId')),
     '/sessions': async (body) => ({ sessions: await manager.listSessions(str(body, 'hostId'), str(body, 'project')) }),
+    '/mkdir': async (body) => ({ path: await fs.mkdir(str(body, 'hostId'), str(body, 'path')) }),
     '/browse': async (body) => fs.list(
       str(body, 'hostId'),
       typeof body.path === 'string' && body.path.trim() !== '' ? body.path : '~',

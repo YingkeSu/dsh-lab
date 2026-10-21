@@ -30,5 +30,10 @@ export function createRemoteFs({ hosts, run = sshRun }) {
     return { path: cwd, parent: posix.dirname(cwd), dirs };
   }
 
-  return { list };
+  /** Create a directory (and parents) on the remote host, returning its resolved path. */
+  async function mkdir(hostId, path) {
+    return (await exec(hostId, `mkdir -p ${pathArg(path)} && cd ${pathArg(path)} && pwd`)).trim();
+  }
+
+  return { list, mkdir };
 }
