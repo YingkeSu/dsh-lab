@@ -1,0 +1,30 @@
+name: plugin-test
+
+on:
+  push:
+    paths:
+      - 'plugins/dsh-remote-pure/**'
+      - '.github/workflows/plugin-test.yml'
+  pull_request:
+    paths:
+      - 'plugins/dsh-remote-pure/**'
+      - '.github/workflows/plugin-test.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/dsh-remote-pure
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run plugin tests
+        run: node --test test/*.test.js
+      - name: Check package manifest
+        run: |
+          node --check index.js
+          node --check client.js
+          npm pack --dry-run >/dev/null
