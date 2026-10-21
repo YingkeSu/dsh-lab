@@ -44,7 +44,7 @@ const str = (body, key) => {
   return value;
 };
 
-export function createApi({ manager, hosts, fs }) {
+export function createApi({ manager, hosts, fs, updater }) {
   const routes = {
     '/hosts': async () => ({ hosts }),
     '/connect': async (body) => manager.connect(str(body, 'hostId'), str(body, 'project')),
@@ -67,6 +67,8 @@ export function createApi({ manager, hosts, fs }) {
       typeof body.path === 'string' && body.path.trim() !== '' ? body.path : '~',
     ),
     '/history': async (body) => ({ messages: await manager.readHistory(str(body, 'hostId'), str(body, 'project'), str(body, 'sessionId')) }),
+    '/update-check': async () => updater.check(),
+    '/update': async () => updater.apply(),
   };
 
   return async function handle(req, res) {

@@ -245,6 +245,10 @@ window.__ModuleLoader__.load({
       var newDir = newDirPair[0], setNewDir = newDirPair[1];
       var browseSeq = react.useRef(0);
       var historySeq = react.useRef(0);
+      var updatePair = react.useState(null);
+      var updateInfo = updatePair[0], setUpdateInfo = updatePair[1];
+      var notePair = react.useState('');
+      var updateNote = notePair[0], setUpdateNote = notePair[1];
 
       var target = connection || { hostId: hostId, project: project };
       var call = function (path, extra) {
@@ -263,6 +267,7 @@ window.__ModuleLoader__.load({
             setHostId(list[0].id);
           }
         }).catch(function (e) { setError(e.message); });
+        api('/update-check', {}).then(function (value) { if (value && value.updateAvailable) setUpdateInfo(value); }).catch(function () {});
       }, []);
 
       function loadHistory(nextSessionId) {
@@ -375,6 +380,25 @@ window.__ModuleLoader__.load({
         });
       }
 
+      function copyCommand(command) {
+        try { window.navigator.clipboard.writeText(command); } catch (e) { /* clipboard unavailable */ }
+      }
+
+      function handleUpdate() {
+        if (updateInfo === null) return;
+        if (updateInfo.mode === 'auto') {
+          api('/update', {}).then(function (result) {
+            if (result.application === 'manual') copyCommand(result.command || updateInfo.command || '');
+            setUpdateNote(result.application === 'applied' ? '已更新' : (result.application === 'restart-required' ? '已安装，重启后生效' : '已复制更新命令'));
+            setUpdateInfo(null);
+          }).catch(function (e) { setUpdateNote('更新失败：' + e.message); });
+          return;
+        }
+        copyCommand(updateInfo.command || '');
+        setUpdateNote('已复制更新命令');
+        setUpdateInfo(null);
+      }
+
       function send() {
         var text = draft.trim();
         if (text === '' || running) return;
@@ -441,6 +465,8 @@ window.__ModuleLoader__.load({
             : react.createElement('button', { className: 'rp-btn', onClick: disconnect }, '断开'),
           react.createElement('span', { className: 'rp-status', title: hostHint }, connection === null ? (hosts.length === 0 ? '未配置主机' : '未连接') : (selectedHost ? (selectedHost.label || selectedHost.id) : connection.hostId) + ':' + connection.project),
           running ? react.createElement('span', { className: 'rp-run' }, react.createElement('span', { className: 'rp-dot' }), '远端运行中') : null,
+          updateInfo === null ? null : react.createElement('button', { className: 'rp-btn', title: updateInfo.command || '', onClick: handleUpdate }, '新版本 ' + updateInfo.latest),
+          updateNote === '' ? null : react.createElement('span', { className: 'rp-status' }, updateNote),
           react.createElement(
             'div',
             { className: 'rp-tabs' },

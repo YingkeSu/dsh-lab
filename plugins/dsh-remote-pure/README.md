@@ -57,6 +57,19 @@ without extra configuration. Explicit `hosts` rows win over a discovered alias w
 | `lib/http-api.js` | `/remote-pure/api/*` routes used by the panel |
 | `client.js` | sidebar entry + main panel (React via the host module table) |
 
+## Optional auto-update
+
+`config.autoUpdate` controls a version check against npm:
+
+| value | behavior |
+|---|---|
+| `notify` (default) | the panel shows a `新版本 x.y.z` button; clicking copies `dsh plugin --profile <profile> add dsh-remote-pure@latest` |
+| `auto` | the same check attempts the install through the Host's PluginManager; HMR-managed profiles may answer "restart required" and fall back to the copied command |
+| `off` | no registry check at all |
+
+The check reuses the Host PluginManager's registry access when present and falls back to a direct
+`registry.npmjs.org` read, cached for one hour. It never installs silently without `auto`.
+
 ## Panel
 
 A sidebar entry (`Remote`, beside the other panel icons) opens the main panel:

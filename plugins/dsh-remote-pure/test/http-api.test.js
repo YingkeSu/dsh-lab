@@ -24,6 +24,11 @@ const fakeFs = {
   mkdir: async (hostId, path) => path,
 };
 
+const fakeUpdater = {
+  check: async () => ({ updateAvailable: false, current: '0.12.0' }),
+  apply: async () => ({ application: 'skipped' }),
+};
+
 const fakeManager = {
   connect: async (hostId, project) => { calls.push(['connect', hostId, project]); return { hostId, project }; },
   createSession: () => ({ id: 'session-new' }),
@@ -40,7 +45,7 @@ test('api routes connect, prompt, history and rejects unknown endpoints', async 
     req.method = 'POST'; req.url = url; req.headers = {};
     let payload = '';
     const res = { setHeader() {}, writeHead() {}, end(chunk) { payload += chunk ?? ''; } };
-    return createApi({ manager: fakeManager, hosts, fs: fakeFs })(req, res).then(() => JSON.parse(payload));
+    return createApi({ manager: fakeManager, hosts, fs: fakeFs, updater: fakeUpdater })(req, res).then(() => JSON.parse(payload));
   };
   assert.deepEqual(await api('/remote-pure/api/hosts', {}), { hosts });
   assert.deepEqual(await api('/remote-pure/api/connect', { hostId: 'mb', project: '/home/me/app' }), { hostId: 'mb', project: '/home/me/app' });
@@ -49,6 +54,7 @@ test('api routes connect, prompt, history and rejects unknown endpoints', async 
   assert.deepEqual(await api('/remote-pure/api/history', { hostId: 'mb', project: '/p', sessionId: 's' }), { messages: [{ role: 'user', text: 'hi', time: 1 }] });
   assert.deepEqual(await api('/remote-pure/api/browse', { hostId: 'mb', path: '/home' }), { path: '/home', parent: '/home', dirs: ['app'] });
   assert.deepEqual(await api('/remote-pure/api/mkdir', { hostId: 'mb', path: '~/new' }), { path: '~/new' });
+  assert.deepEqual(await api('/remote-pure/api/update-check', {}), { updateAvailable: false, current: '0.12.0' });
   const missing = await api('/remote-pure/api/nope', {});
   assert.equal(missing.error.code, 'unknown-endpoint');
 });

@@ -9,6 +9,7 @@ import { createApi } from './lib/http-api.js';
 import { createRemoteFs } from './lib/remote-fs.js';
 import { mergeHosts, readSshConfig } from './lib/ssh-config.js';
 import { registerTerminal, registerTerminalAssets } from './lib/terminal.js';
+import { createUpdater } from './lib/update.js';
 
 export const name = 'remote-pure';
 
@@ -46,9 +47,12 @@ export function apply(ctx, config = {}) {
   const hosts = mergeHosts({ configured: readHosts(config), discovered, defaults, ignore });
   const manager = createManager({ hosts });
   const remoteFs = createRemoteFs({ hosts });
+  const autoUpdate = config.autoUpdate === 'off' || config.autoUpdate === 'auto' ? config.autoUpdate : 'notify';
+  const updater = createUpdater({ mode: autoUpdate, getManager: () => ctx.get('pluginManager') });
   const handle = createApi({
     manager,
     fs: remoteFs,
+    updater,
     hosts: hosts.map(({ id, label, discovered: fromConfig }) => ({ id, label, discovered: fromConfig === true })),
   });
   ctx.effect(
