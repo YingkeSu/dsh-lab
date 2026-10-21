@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Remote Pure",
+    "description": "通过 SSH 控制远端 DeepSeek Harness 项目，按需读取远端会话历史。"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Remote Pure",
+    "description": "Control a remote DeepSeek Harness project over SSH, with on-demand session history."
+  }
+}

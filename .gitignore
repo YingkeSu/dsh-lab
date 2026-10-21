@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Local scratch and build artifacts
+.tmp/
+*.tgz
+*.log
+.DS_Store
+
+# Test/build output
+coverage/
+dist/

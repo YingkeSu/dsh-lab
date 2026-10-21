@@ -1,0 +1,8 @@
+# Profile rows for the remote panel. `hosts` lists the SSH targets the panel
+# offers; each row needs `id` and `ssh`, and may override `dshCommand`,
+# `dshHome`, `provider`, `model` and `label`.
+- insert:
+    - id: remote-pure
+      name: 'dsh-remote-pure'
+      config:
+        hosts: []
