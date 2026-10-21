@@ -90,3 +90,32 @@ test('prompting a session listed from remote history resumes it first', async ()
   assert.deepEqual(order, ['initialize', 'session/resume', 'session/prompt']);
   manager.dispose();
 });
+
+
+test('concurrent connects to the same project share one ssh runtime', async () => {
+  let spawns = 0;
+  const manager = createManager({
+    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: 'dsh' }],
+    spawn: ({ host, command }) => {
+      spawns += 1;
+      const toServer = new PassThrough();
+      const fromServer = new PassThrough();
+      fakeRuntime(toServer, fromServer);
+      return { child: { stdin: toServer, stdout: fromServer, stderr: new PassThrough(), kill() {}, on() {}, once() {} }, argv: ['ssh', host, command] };
+    },
+    runRemote: async () => '',
+  });
+  const [a, b] = await Promise.all([manager.connect('mb', '/p'), manager.connect('mb', '/p')]);
+  assert.equal(spawns, 1);
+  assert.deepEqual(a, b);
+  manager.dispose();
+});
+
+test('readHistory rejects unsafe session ids before touching the remote host', async () => {
+  const manager = createManager({
+    hosts: [{ id: 'mb', ssh: 'macbook', dshCommand: 'dsh' }],
+    spawn: () => { throw new Error('should not connect'); },
+    runRemote: async () => { throw new Error('should not run'); },
+  });
+  await assert.rejects(manager.readHistory('mb', '/p', '../escape'), /invalid remote session id/);
+});

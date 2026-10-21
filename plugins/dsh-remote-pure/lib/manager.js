@@ -10,19 +10,21 @@ import { shellQuote, sshRun, sshSpawn } from './ssh.js';
 
 const DEFAULT_DSH_HOME = '$HOME/.dsh';
 const EVENT_LIMIT = 400;
-
-function withTimeout(promise, ms, label) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
+const SESSION_ID = /^[A-Za-z0-9._-]+$/;
 
 /** Quote a remote path while letting a configured `$HOME` prefix expand. */
-const remotePath = (value) => (String(value).startsWith('$HOME')
-  ? `"${String(value).replaceAll('"', '\\"')}"`
-  : shellQuote(value));
+function remotePath(value) {
+  const text = String(value);
+  if (text === '$HOME') return '"$HOME"';
+  if (text.startsWith('$HOME/')) return `"$HOME"${shellQuote(text.slice(5))}`;
+  return shellQuote(text);
+}
+
+function assertSessionId(sessionId) {
+  if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId) || sessionId.includes('..')) {
+    throw new Error(`invalid remote session id: ${String(sessionId)}`);
+  }
+}
 
 export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun }) {
   const byId = new Map(hosts.map((host) => [host.id, host]));
@@ -39,36 +41,51 @@ export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun }) {
     const path = normalizeRemotePath(project);
     const id = key(hostId, path);
     const existing = connections.get(id);
-    if (existing !== undefined) return existing.info;
+    if (existing !== undefined) return existing.ready;
     const remoteCommand = `${target.dshCommand ?? 'dsh'} --profile sdk`;
     const { child } = spawn({ host: target, ssh: target.ssh, target, command: remoteCommand, argv: [] });
     const client = createSdkClient({ input: child.stdout, output: child.stdin });
-    const connection = { info: { hostId, project: path }, client, child, sessions: new Map(), stderr: '' };
-    child.stderr?.setEncoding?.('utf8');
-    child.stderr?.on('data', (chunk) => { connection.stderr = (connection.stderr + chunk).slice(-4000); });
-    const route = { provider: target.provider ?? 'deepseek-official', model: target.model ?? 'deepseek-flash' };
-    try {
-      await withTimeout(client.request('initialize', { cwd: path, ...route }), target.connectTimeoutMs ?? 30000, 'remote initialize');
-    } catch (error) {
-      child.kill?.('SIGTERM');
-      throw new Error(`remote initialize failed (${hostId}:${path}): ${error.message}${connection.stderr ? `\n${connection.stderr.slice(-500)}` : ''}`);
-    }
-    client.onNotification((method, params) => {
-      if (method !== 'session.event' && method !== 'session.status') return;
-      const session = connection.sessions.get(params?.sessionId);
-      if (session === undefined) return;
-      session.updatedAt = Date.now();
-      if (method === 'session.event') {
-        session.events.push(params.event);
-        if (session.events.length > EVENT_LIMIT) session.events.shift();
-        const [message] = readMessages([params.event]);
-        if (message !== undefined) session.messages.push(message);
-      } else {
-        session.running = params.status === 'running';
-      }
-    });
+    const connection = { info: { hostId, project: path }, client, child, sessions: new Map(), stderr: '', closed: false, ready: null };
+    // Register before awaiting so a concurrent connect shares this attempt and
+    // dispose/teardown can reach the child; a closed connection is dropped so a
+    // later connect starts fresh instead of returning a dead handle.
     connections.set(id, connection);
-    return connection.info;
+    const drop = () => {
+      connection.closed = true;
+      if (connections.get(id) === connection) connections.delete(id);
+    };
+    child.on?.('error', drop);
+    child.stdin?.on?.('error', drop);
+    client.onClose(drop);
+    child.stderr?.setEncoding?.('utf8');
+    child.stderr?.on?.('data', (chunk) => { connection.stderr = (connection.stderr + chunk).slice(-4000); });
+    const route = { provider: target.provider ?? 'deepseek-official', model: target.model ?? 'deepseek-flash' };
+    connection.ready = (async () => {
+      try {
+        await client.request('initialize', { cwd: path, ...route }, target.connectTimeoutMs ?? 30000);
+      } catch (error) {
+        drop();
+        client.close();
+        child.kill?.('SIGTERM');
+        throw new Error(`remote initialize failed (${hostId}:${path}): ${error.message}${connection.stderr ? `\n${connection.stderr.slice(-500)}` : ''}`);
+      }
+      client.onNotification((method, params) => {
+        if (method !== 'session.event' && method !== 'session.status') return;
+        const session = connection.sessions.get(params?.sessionId);
+        if (session === undefined) return;
+        session.updatedAt = Date.now();
+        if (method === 'session.event') {
+          session.events.push(params.event);
+          if (session.events.length > EVENT_LIMIT) session.events.shift();
+          const [message] = readMessages([params.event]);
+          if (message !== undefined) session.messages.push(message);
+        } else {
+          session.running = params.status === 'running';
+        }
+      });
+      return connection.info;
+    })();
+    return connection.ready;
   }
 
   function requireConnection(hostId, project) {
@@ -86,16 +103,26 @@ export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun }) {
 
   async function prompt(hostId, project, sessionId, text) {
     const connection = requireConnection(hostId, project);
+    assertSessionId(sessionId);
     let session = connection.sessions.get(sessionId);
     if (session === undefined) {
-      // A session the panel listed from the remote store is resumed by id before
-      // its first prompt; the runtime owns reopening it from its own log.
-      session = { id: sessionId, messages: [], events: [], running: false, updatedAt: Date.now() };
+      // A session listed from the remote store is resumed once by id; concurrent
+      // prompts await the same resume and a failed resume is not cached.
+      const resumed = connection.client.request('session/resume', { sessionId }).catch((error) => {
+        connection.sessions.delete(sessionId);
+        throw error;
+      });
+      session = { id: sessionId, messages: [], events: [], running: false, updatedAt: Date.now(), resume: resumed };
       connection.sessions.set(sessionId, session);
-      await connection.client.request('session/resume', { sessionId });
     }
+    if (session.resume !== undefined) await session.resume;
     session.running = true;
-    return connection.client.request('session/prompt', { sessionId, contentBlocks: [{ type: 'text', text }] });
+    try {
+      return await connection.client.request('session/prompt', { sessionId, contentBlocks: [{ type: 'text', text }] });
+    } catch (error) {
+      session.running = false;
+      throw error;
+    }
   }
 
   function sessionState(hostId, project, sessionId) {
@@ -121,6 +148,7 @@ export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun }) {
 
   /** Read one remote session log on demand; nothing is written locally. */
   async function readHistory(hostId, project, sessionId) {
+    assertSessionId(sessionId);
     const target = host(hostId);
     const dir = `${target.dshHome ?? DEFAULT_DSH_HOME}/sessions/${projectDirName(project)}/${sessionId}`;
     const files = (await runRemote({ host: target, ssh: target.ssh, target, command: `ls -1 ${remotePath(dir)} 2>/dev/null || true` }))

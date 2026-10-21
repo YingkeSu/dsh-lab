@@ -53,3 +53,12 @@ test('sdk client rejects pending requests when the remote stream ends', async ()
   fromServer.end();
   await assert.rejects(pending, /closed|ended|disconnect/i);
 });
+
+
+test('sdk client times out a request whose response never arrives', async () => {
+  const toServer = new PassThrough();
+  const fromServer = new PassThrough();
+  const client = createSdkClient({ input: fromServer, output: toServer });
+  await assert.rejects(client.request('session/prompt', {}, 25), /timed out after 25ms/);
+  client.close();
+});

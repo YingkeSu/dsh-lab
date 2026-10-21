@@ -243,6 +243,8 @@ window.__ModuleLoader__.load({
       var tab = tabPair[0], setTab = tabPair[1];
       var newDirPair = react.useState('');
       var newDir = newDirPair[0], setNewDir = newDirPair[1];
+      var browseSeq = react.useRef(0);
+      var historySeq = react.useRef(0);
 
       var target = connection || { hostId: hostId, project: project };
       var call = function (path, extra) {
@@ -264,7 +266,9 @@ window.__ModuleLoader__.load({
       }, []);
 
       function loadHistory(nextSessionId) {
+        var seq = ++historySeq.current;
         return call('/history', { sessionId: nextSessionId }).then(function (value) {
+          if (seq !== historySeq.current) return;
           setMessages(value.messages || []);
         });
       }
@@ -314,6 +318,7 @@ window.__ModuleLoader__.load({
 
       function newSession() {
         if (!connection) return;
+        historySeq.current += 1;
         setError('');
         call('/new-session').then(function (created) {
           setSessionId(created.sessionId);
@@ -328,6 +333,7 @@ window.__ModuleLoader__.load({
       }
 
       function disconnect() {
+        historySeq.current += 1;
         call('/disconnect').catch(function () {});
         setConnection(null);
         setSessionId('');
@@ -337,10 +343,13 @@ window.__ModuleLoader__.load({
       }
 
       function browse(path) {
+        var seq = ++browseSeq.current;
         setPicker({ path: path, dirs: [], parent: '', loading: true, error: '' });
         api('/browse', { hostId: hostId, path: path }).then(function (value) {
+          if (seq !== browseSeq.current) return;
           setPicker({ path: value.path, dirs: value.dirs || [], parent: value.parent || '', loading: false, error: '' });
         }).catch(function (e) {
+          if (seq !== browseSeq.current) return;
           setPicker({ path: path, dirs: [], parent: '', loading: false, error: e.message });
         });
       }
@@ -353,6 +362,10 @@ window.__ModuleLoader__.load({
       function createDir() {
         var name = newDir.trim();
         if (name === '' || picker === null) return;
+        if (name === '.' || name === '..' || name.indexOf('/') >= 0) {
+          setPicker({ path: picker.path, dirs: picker.dirs, parent: picker.parent, loading: false, error: '新目录名只能是单个路径段' });
+          return;
+        }
         var path = (picker.path === '/' ? '' : picker.path) + '/' + name;
         api('/mkdir', { hostId: hostId, path: path }).then(function (value) {
           setNewDir('');
@@ -366,23 +379,27 @@ window.__ModuleLoader__.load({
         var text = draft.trim();
         if (text === '' || running) return;
         if (!connection) { setError('请先连接远端项目'); return; }
+        if (sessionId === '') { setError('远端会话尚未就绪，请稍后再试'); return; }
         var current = sessionId;
         setError('');
         setDraft('');
         setRunning(true);
+        setMessages(function (previous) { return previous.concat([{ role: 'user', text: text, time: Date.now() }]); });
         call('/prompt', { sessionId: current, text: text })
-          .catch(function (e) { setRunning(false); setError(e.message); });
+          .catch(function (e) {
+            setRunning(false);
+            setDraft(function (previous) { return previous === '' ? text : previous; });
+            setError(e.message);
+          });
       }
 
       react.useEffect(function () {
         if (!running || !connection) return undefined;
         var timer = setInterval(function () {
           call('/state', { sessionId: sessionId }).then(function (state) {
-            setMessages(state.messages || []);
-            if (!state.running) {
-              setRunning(false);
-              loadHistory(sessionId).catch(function () {});
-            }
+            if (state.running) return;
+            setRunning(false);
+            loadHistory(sessionId).catch(function () {});
           }).catch(function (e) { setRunning(false); setError(e.message); });
         }, 700);
         return function () { clearInterval(timer); };
@@ -408,7 +425,7 @@ window.__ModuleLoader__.load({
             className: 'rp-input',
             value: hostId,
             disabled: !!connection,
-            onChange: function (event) { setHostId(event.target.value); setPicker(null); },
+            onChange: function (event) { browseSeq.current += 1; setHostId(event.target.value); setPicker(null); },
           }, hostOptions),
           react.createElement('input', {
             className: 'rp-input rp-project',
@@ -533,8 +550,8 @@ window.__ModuleLoader__.load({
             react.createElement('button', { className: 'rp-btn', onClick: function () { browse('~'); } }, '~'),
             react.createElement('button', { className: 'rp-btn', disabled: picker.path === '/', onClick: function () { browse(picker.parent); } }, '..'),
             react.createElement('span', { className: 'rp-picker-path', title: picker.path }, picker.path),
-            react.createElement('button', { className: 'rp-btn', onClick: function () { setPicker(null); } }, '取消'),
-            react.createElement('button', { className: 'rp-btn rp-primary', onClick: function () { setProject(picker.path); setPicker(null); } }, '选择此目录'),
+            react.createElement('button', { className: 'rp-btn', onClick: function () { browseSeq.current += 1; setPicker(null); } }, '取消'),
+            react.createElement('button', { className: 'rp-btn rp-primary', onClick: function () { browseSeq.current += 1; setProject(picker.path); setPicker(null); } }, '选择此目录'),
           ),
           react.createElement(
             'div',

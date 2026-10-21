@@ -1,21 +1,33 @@
 /**
  * Minimal line-framed JSON-RPC 2.0 client for the DeepSeek Harness SDK runtime.
- * Owns one duplex: `input` (remote -> us) and `output` (us -> remote). The SDK
- * server is authoritative; when the remote stream ends or errors every pending
- * request is rejected so callers never hang on a dead SSH channel.
+ * Owns one duplex: `input` (remote -> us) and `output` (us -> remote). Requests
+ * time out and every pending request is rejected when the channel dies, so a
+ * stalled or dead SSH channel can never hang the panel.
  */
 import { randomUUID } from 'node:crypto';
 
-export function createSdkClient({ input, output }) {
+const DEFAULT_TIMEOUT_MS = 60000;
+
+export function createSdkClient({ input, output, onClose = () => {} }) {
+  if (input === undefined || input === null || output === undefined || output === null) {
+    return {
+      request: () => Promise.reject(new Error('remote channel unavailable')),
+      onNotification: () => {},
+      onClose: () => {},
+      close: () => {},
+    };
+  }
   let buffer = '';
   let closed = false;
   const pending = new Map();
   let notificationHandler = () => {};
+  let closeHandler = onClose;
 
   const settle = (id, error, result) => {
     const entry = pending.get(id);
     if (entry === undefined) return;
     pending.delete(id);
+    clearTimeout(entry.timer);
     if (error) entry.reject(error);
     else entry.resolve(result);
   };
@@ -50,8 +62,10 @@ export function createSdkClient({ input, output }) {
     const error = new Error(`remote channel closed: ${reason}`);
     for (const [id, entry] of pending) {
       pending.delete(id);
+      clearTimeout(entry.timer);
       entry.reject(error);
     }
+    closeHandler();
   };
 
   input.setEncoding?.('utf8');
@@ -61,16 +75,29 @@ export function createSdkClient({ input, output }) {
   input.on('error', (error) => fail(error.message));
 
   return {
-    request(method, params) {
+    request(method, params, timeoutMs = DEFAULT_TIMEOUT_MS) {
       if (closed) return Promise.reject(new Error('remote channel closed'));
       const id = `req_${randomUUID()}`;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        output.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`remote ${method} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        pending.set(id, { resolve, reject, timer });
+        try {
+          output.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+        } catch (error) {
+          pending.delete(id);
+          clearTimeout(timer);
+          reject(error);
+        }
       });
     },
     onNotification(handler) {
       notificationHandler = handler;
+    },
+    onClose(handler) {
+      closeHandler = handler;
     },
     close() {
       input.off?.('data', onData);

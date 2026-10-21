@@ -61,6 +61,9 @@ export function registerTerminal({ webServer, subprocess, hosts }) {
 
   async function run(ws, target, cols, rows) {
     let handle;
+    let closed = false;
+    ws.on('close', () => { closed = true; });
+    ws.on('error', () => { closed = true; });
     try {
       handle = await subprocess.spawnTerminal({
         argv: ['ssh', ...sshArgs(target, ['-tt'])],
@@ -73,6 +76,10 @@ export function registerTerminal({ webServer, subprocess, hosts }) {
     } catch (error) {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'error', message: error.message }));
       ws.close();
+      return;
+    }
+    if (closed) {
+      void handle.terminate();
       return;
     }
     live.add(handle);

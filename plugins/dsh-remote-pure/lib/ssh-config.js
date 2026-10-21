@@ -79,9 +79,11 @@ export function mergeHosts({ configured = [], discovered = [], defaults = {}, ig
     sshOptions: row.sshOptions,
   }));
   const seen = new Set(rows.map((row) => row.id));
-  const discoveredRows = allowed
-    .filter((entry) => !seen.has(entry.alias))
-    .map((entry) => ({
+  const discoveredRows = [];
+  for (const entry of allowed) {
+    if (seen.has(entry.alias)) continue;
+    seen.add(entry.alias);
+    discoveredRows.push({
       id: entry.alias,
       ssh: entry.alias,
       label: entry.hostName === undefined ? entry.alias : `${entry.alias} (${entry.user ?? 'user'}@${entry.hostName})`,
@@ -90,7 +92,8 @@ export function mergeHosts({ configured = [], discovered = [], defaults = {}, ig
       provider: defaults.provider,
       model: defaults.model,
       discovered: true,
-    }))
-    .sort((a, b) => a.id.localeCompare(b.id));
+    });
+  }
+  discoveredRows.sort((a, b) => a.id.localeCompare(b.id));
   return [...rows, ...discoveredRows];
 }

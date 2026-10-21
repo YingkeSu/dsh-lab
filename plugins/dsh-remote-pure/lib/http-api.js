@@ -70,6 +70,10 @@ export function createApi({ manager, hosts, fs }) {
   };
 
   return async function handle(req, res) {
+    if (req.method !== 'POST') {
+      send(res, 405, { error: { code: 'method-not-allowed', message: 'POST required' } });
+      return;
+    }
     const path = String(req.url ?? '').split('?')[0];
     const tail = path.slice(path.indexOf('/api') + 4);
     const route = routes[tail];
