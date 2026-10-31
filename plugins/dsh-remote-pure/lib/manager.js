@@ -27,10 +27,10 @@ function assertSessionId(sessionId) {
   }
 }
 
-export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun, detectDsh, autoDetectDsh = true }) {
+export function createManager({ hosts, spawn = sshSpawn, runRemote = sshRun, detectDsh, autoDetectDsh = true, dshResolver }) {
   const byId = new Map(hosts.map((host) => [host.id, host]));
   const connections = new Map();
-  const resolveDsh = createDshResolver({ runRemote, detectDsh, autoDetectDsh });
+  const resolveDsh = dshResolver ?? createDshResolver({ runRemote, detectDsh, autoDetectDsh });
   const host = (hostId) => {
     const found = byId.get(hostId);
     if (found === undefined) throw new Error(`unknown remote host: ${hostId}`);

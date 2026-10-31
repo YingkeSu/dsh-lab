@@ -25,6 +25,8 @@ window.__ModuleLoader__.load({
       '.rp-btn:disabled{opacity:.45;cursor:default}',
       '.rp-btn.rp-primary{background:var(--dsw-alias-accent,transparent);border-color:var(--dsw-alias-accent,transparent);color:var(--dsw-alias-text-on-accent,inherit)}',
       '.rp-status{font-size:12px;opacity:.7;white-space:nowrap}',
+      '.rp-check{display:inline-flex;align-items:center;gap:4px;font-size:12px;opacity:.8;user-select:none;cursor:pointer}',
+
       '.rp-error{margin:8px 16px;padding:8px 10px;border-radius:6px;font-size:12px;background:rgba(220,60,60,.12);border:1px solid rgba(220,60,60,.4);white-space:pre-wrap}',
       '.rp-body{display:flex;flex:1;min-height:0}',
       '.rp-sessions{width:230px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--dsw-alias-border-subtle,rgba(127,127,127,.24));min-height:0}',
@@ -249,6 +251,14 @@ window.__ModuleLoader__.load({
       var updateInfo = updatePair[0], setUpdateInfo = updatePair[1];
       var notePair = react.useState('');
       var updateNote = notePair[0], setUpdateNote = notePair[1];
+      var webPair = react.useState(null);
+      var webChannel = webPair[0], setWebChannel = webPair[1];
+      var webBusyPair = react.useState(false);
+      var webBusy = webBusyPair[0], setWebBusy = webBusyPair[1];
+      var tmuxPair = react.useState(function () {
+        try { return window.localStorage.getItem('remote-pure:tmux') === '1'; } catch (e) { return false; }
+      });
+      var tmux = tmuxPair[0], setTmux = tmuxPair[1];
 
       var target = connection || { hostId: hostId, project: project };
       var call = function (path, extra) {
@@ -399,6 +409,34 @@ window.__ModuleLoader__.load({
         setUpdateInfo(null);
       }
 
+      function toggleTmux(value) {
+        setTmux(value);
+        try { window.localStorage.setItem('remote-pure:tmux', value ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+      }
+
+      function openRemoteWeb() {
+        if (hostId === '') return;
+        var blank = null;
+        try { blank = window.open('', '_blank'); } catch (e) { blank = null; }
+        setWebBusy(true);
+        setError('');
+        api('/web-open', { hostId: hostId, useTmux: tmux }).then(function (value) {
+          setWebChannel(value);
+          if (blank) blank.location = value.url;
+          else window.open(value.url, '_blank');
+          if (value.note) setError(value.note);
+        }).catch(function (e) {
+          if (blank) { try { blank.close(); } catch (err) { /* ignore */ } }
+          setError(e.message);
+        }).finally(function () { setWebBusy(false); });
+      }
+
+      function closeRemoteWeb() {
+        var id = webChannel ? webChannel.hostId : hostId;
+        api('/web-close', { hostId: id }).catch(function (e) { setError(e.message); });
+        setWebChannel(null);
+      }
+
       function send() {
         var text = draft.trim();
         if (text === '' || running) return;
@@ -460,6 +498,13 @@ window.__ModuleLoader__.load({
             onKeyDown: function (event) { if (event.key === 'Enter') connect(); },
           }),
           react.createElement('button', { className: 'rp-btn', disabled: !!connection || hostId === '', onClick: openPicker }, '浏览'),
+          react.createElement('label', { className: 'rp-check', title: '远端用 tmux 启动 dsh web：SSH 断开后远端进程仍存活' },
+            react.createElement('input', { type: 'checkbox', checked: tmux, disabled: webBusy, onChange: function (event) { toggleTmux(event.target.checked); } }),
+            'tmux',
+          ),
+          webChannel === null
+            ? react.createElement('button', { className: 'rp-btn', disabled: hostId === '' || webBusy, onClick: openRemoteWeb }, webBusy ? '启动中…' : '远端 DSH 页面')
+            : react.createElement('button', { className: 'rp-btn', onClick: closeRemoteWeb }, '关闭网页通道'),
           connection === null
             ? react.createElement('button', { className: 'rp-btn rp-primary', disabled: busy || hosts.length === 0, onClick: connect }, busy ? '连接中…' : '连接')
             : react.createElement('button', { className: 'rp-btn', onClick: disconnect }, '断开'),

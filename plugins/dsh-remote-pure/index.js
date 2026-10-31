@@ -6,10 +6,13 @@
  */
 import { createManager } from './lib/manager.js';
 import { createApi } from './lib/http-api.js';
+import { createDshResolver } from './lib/dsh-command.js';
 import { createRemoteFs } from './lib/remote-fs.js';
+import { sshRun } from './lib/ssh.js';
 import { mergeHosts, readSshConfig } from './lib/ssh-config.js';
 import { registerTerminal, registerTerminalAssets } from './lib/terminal.js';
 import { createUpdater } from './lib/update.js';
+import { createWebChannel } from './lib/web-channel.js';
 
 export const name = 'remote-pure';
 
@@ -45,14 +48,17 @@ export function apply(ctx, config = {}) {
   const discovered = config.discoverSshHosts === false ? [] : readSshConfig(config.sshConfigPath);
   const ignore = Array.isArray(config.ignoreSshHosts) ? config.ignoreSshHosts : [];
   const hosts = mergeHosts({ configured: readHosts(config), discovered, defaults, ignore });
-  const manager = createManager({ hosts });
+  const resolveDsh = createDshResolver({ runRemote: sshRun });
+  const manager = createManager({ hosts, dshResolver: resolveDsh });
   const remoteFs = createRemoteFs({ hosts });
+  const webChannel = createWebChannel({ hosts, resolveDsh, runRemote: sshRun });
   const autoUpdate = config.autoUpdate === 'off' || config.autoUpdate === 'auto' ? config.autoUpdate : 'notify';
   const updater = createUpdater({ mode: autoUpdate, getManager: () => ctx.get('pluginManager') });
   const handle = createApi({
     manager,
     fs: remoteFs,
     updater,
+    webChannel,
     hosts: hosts.map(({ id, label, discovered: fromConfig }) => ({ id, label, discovered: fromConfig === true })),
   });
   ctx.effect(
@@ -60,6 +66,7 @@ export function apply(ctx, config = {}) {
     'remote-pure: routes',
   );
   ctx.effect(() => () => manager.dispose(), 'remote-pure: connections');
+  ctx.effect(() => () => { void webChannel.dispose(); }, 'remote-pure: web channels');
   ctx.effect(() => registerTerminalAssets({ webServer: ctx.webServer }), 'remote-pure: terminal assets');
   ctx.effect(
     () => registerTerminal({ webServer: ctx.webServer, subprocess: ctx.subprocess, hosts }),

@@ -44,7 +44,7 @@ const str = (body, key) => {
   return value;
 };
 
-export function createApi({ manager, hosts, fs, updater }) {
+export function createApi({ manager, hosts, fs, updater, webChannel }) {
   const routes = {
     '/hosts': async () => ({ hosts }),
     '/connect': async (body) => manager.connect(str(body, 'hostId'), str(body, 'project')),
@@ -67,6 +67,11 @@ export function createApi({ manager, hosts, fs, updater }) {
       typeof body.path === 'string' && body.path.trim() !== '' ? body.path : '~',
     ),
     '/history': async (body) => ({ messages: await manager.readHistory(str(body, 'hostId'), str(body, 'project'), str(body, 'sessionId')) }),
+    '/web-open': async (body) => webChannel.open(str(body, 'hostId'), {
+      useTmux: body.useTmux === true,
+      attachUrl: typeof body.attachUrl === 'string' ? body.attachUrl : undefined,
+    }),
+    '/web-close': async (body) => webChannel.close(str(body, 'hostId')),
     '/update-check': async () => updater.check(),
     '/update': async () => updater.apply(),
   };

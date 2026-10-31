@@ -65,6 +65,23 @@ without extra configuration. Explicit `hosts` rows win over a discovered alias w
 | `lib/http-api.js` | `/remote-pure/api/*` routes used by the panel |
 | `client.js` | sidebar entry + main panel (React via the host module table) |
 
+## Remote DSH web page
+
+The panel can open a remote host's own DSH Web UI without exposing its port:
+
+1. the Host half runs `<dshCommand> web --no-open --port 0` on the remote host and captures the
+   one-time token URL it prints (`127.0.0.1` only);
+2. a supervised `ssh -N -L 127.0.0.1:<local>:127.0.0.1:<remote>` tunnel is opened and the token URL is
+   rewritten to the local port; the panel opens it in a new tab;
+3. **关闭网页通道** closes the tunnel, stops the remote process, and kills its tmux session. An
+   already-running instance can be attached instead by posting its token URL as `attachUrl` to
+   `/remote-pure/api/web-open`; attaching never starts or stops a remote process.
+
+**tmux option**: the `tmux` checkbox starts the remote server inside a tmux session
+(`dsh-remote-pure-<host>`), so a transient SSH drop does not kill it; the tunnel is then re-established
+on the same local port. When the remote host has no tmux the plugin falls back to `nohup` and reports
+that in the panel. The remote `dsh web` must be able to start from the configured `dshCommand`.
+
 ## Optional auto-update
 
 `config.autoUpdate` controls a version check against npm:
