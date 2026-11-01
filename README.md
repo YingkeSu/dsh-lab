@@ -1,5 +1,7 @@
 # dsh-lab
 
+English | [中文](README.zh.md)
+
 DeepSeek Harness (`dsh`) plugins maintained in this repository.
 
 | Plugin | npm | Description |
