@@ -3,22 +3,18 @@
  * to 127.0.0.1 and prints a one-time token URL; we capture it on the remote host
  * and never expose the remote port. tmux is optional: it keeps the remote
  * process alive across SSH drops, and we fall back to nohup when tmux is absent.
+ * The profile defaults to `web`; `dsh <profile>` is shorthand for
+ * `dsh --profile <profile>`.
  */
 import { shellQuote } from './ssh.js';
+import { remotePath } from './paths.js';
+import { isLaunchableProfile } from './profiles.js';
 
 const URL_PATTERN = /http:\/\/127\.0\.0\.1:(\d+)\/\?token=([A-Za-z0-9_-]+)/;
 
 function paths(target) {
   const home = target.dshHome ?? '$HOME/.dsh';
   return { dir: `${home}/remote-pure`, log: `${home}/remote-pure/web.log` };
-}
-
-/** Quote a remote path, letting a configured `$HOME` prefix expand. */
-function remotePath(value) {
-  const text = String(value);
-  if (text === '$HOME') return '"$HOME"';
-  if (text.startsWith('$HOME/')) return `"$HOME"${shellQuote(text.slice(5))}`;
-  return shellQuote(text);
 }
 
 /** Parse the token URL printed by `dsh web`. */
@@ -28,11 +24,15 @@ export function parseWebUrl(text) {
   return { port: Number(match[1]), token: match[2], url: match[0] };
 }
 
-/** Build the shell script that launches the remote dsh web, tmux or nohup. */
-export function launchScript({ command, log, dir, useTmux, sessionName }) {
+/**
+ * Build the shell script that launches the remote dsh web, tmux or nohup.
+ * `profile` is re-validated here so it can never inject into the remote shell.
+ */
+export function launchScript({ command, log, dir, useTmux, sessionName, profile = 'web' }) {
+  if (!isLaunchableProfile(profile)) throw new Error(`invalid dsh profile: ${String(profile)}`);
   const dirExpr = remotePath(dir);
   const logExpr = remotePath(log);
-  const args = `web --no-open --port 0`;
+  const args = `${profile} --no-open --port 0`;
   if (useTmux) {
     // tmux passes this string to a shell, so env assignments and `$HOME` expand.
     const run = `${command} ${args} > ${logExpr} 2>&1`;
@@ -59,7 +59,8 @@ async function waitForUrl({ target, runRemote, log }) {
  * Start the remote server and return its token URL plus how to stop it.
  * @returns {{port:number, token:string, url:string, tmux:boolean, sessionName?:string, pid?:number, log:string, note?:string}}
  */
-export async function startRemoteWeb({ target, command, useTmux, runRemote }) {
+export async function startRemoteWeb({ target, command, useTmux, runRemote, profile = 'web' }) {
+  if (!isLaunchableProfile(profile)) throw new Error(`invalid dsh profile: ${String(profile)}`);
   const { dir, log } = paths(target);
   const sessionName = `dsh-remote-pure-${target.id.replace(/[^A-Za-z0-9_-]/g, '-')}`.slice(0, 60);
   let tmux = useTmux === true;
@@ -71,7 +72,7 @@ export async function startRemoteWeb({ target, command, useTmux, runRemote }) {
       note = '远端没有 tmux，已用 nohup 启动（SSH 断开后通常仍存活，但无法 reattach）';
     }
   }
-  const output = await runRemote({ target, command: launchScript({ command, log, dir, useTmux: tmux, sessionName }) });
+  const output = await runRemote({ target, command: launchScript({ command, log, dir, useTmux: tmux, sessionName, profile }) });
   const parsed = await waitForUrl({ target, runRemote, log });
   const pid = tmux ? undefined : Number(String(output).trim().split('\n').pop()) || undefined;
   return { ...parsed, tmux, sessionName: tmux ? sessionName : undefined, pid, log, note };

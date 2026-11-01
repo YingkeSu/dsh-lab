@@ -2,7 +2,8 @@
  * One tunneled remote DSH web UI per host. The remote server is started on the
  * far side (optionally inside tmux so it survives SSH drops) and reached through
  * a supervised local SSH tunnel; an already-running instance can be attached by
- * passing its token URL instead.
+ * passing its token URL instead. The profile defaults to the host's
+ * `webProfile`, and its local port to the host's `webPort` (0 = automatic).
  */
 import { createTunnel } from './tunnel.js';
 import { parseWebUrl, startRemoteWeb, stopRemoteWeb } from './remote-web.js';
@@ -28,21 +29,28 @@ export function createWebChannel({
     if (existing !== undefined) return existing.info;
     const host = target(hostId);
     const external = typeof options.attachUrl === 'string' && options.attachUrl.trim() !== '';
+    const localPort = options.localPort ?? host.webPort ?? 0;
+    let profile = null;
     let remote;
     if (external) {
       remote = parseWebUrl(options.attachUrl);
       if (remote === null) throw new Error('attachUrl must look like http://127.0.0.1:<port>/?token=<token>');
     } else {
+      profile = options.profile ?? host.webProfile ?? 'web';
       const command = await resolveDsh(host);
-      remote = await remoteWeb.start({ target: host, command, useTmux: options.useTmux === true, runRemote });
+      remote = await remoteWeb.start({ target: host, command, useTmux: options.useTmux === true, runRemote, profile });
     }
-    const handle = await tunnel({ target: host, remotePort: remote.port });
+    const handle = await tunnel({ target: host, remotePort: remote.port, localPort });
+    const note = [remote.note, handle.note].filter((value) => typeof value === 'string' && value !== '').join('；');
     const info = {
       hostId,
       url: `http://127.0.0.1:${handle.localPort}/?token=${remote.token}`,
+      profile,
+      localPort: handle.localPort,
+      remotePort: remote.port,
       tmux: remote.tmux === true,
       external,
-      ...(remote.note === undefined ? {} : { note: remote.note }),
+      ...(note === '' ? {} : { note }),
     };
     channels.set(hostId, { host, remote, tunnel: handle, info, external });
     return info;

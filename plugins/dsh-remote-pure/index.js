@@ -7,10 +7,12 @@
 import { createManager } from './lib/manager.js';
 import { createApi } from './lib/http-api.js';
 import { createDshResolver } from './lib/dsh-command.js';
+import { createProfiles, normalizeProfile } from './lib/profiles.js';
 import { createRemoteFs } from './lib/remote-fs.js';
 import { sshRun } from './lib/ssh.js';
 import { mergeHosts, readSshConfig } from './lib/ssh-config.js';
 import { registerTerminal, registerTerminalAssets } from './lib/terminal.js';
+import { isLocalPort } from './lib/tunnel.js';
 import { createUpdater } from './lib/update.js';
 import { createWebChannel } from './lib/web-channel.js';
 
@@ -35,6 +37,8 @@ function readHosts(config) {
       identityFile: row.identityFile,
       sshOptions: Array.isArray(row.sshOptions) ? row.sshOptions : undefined,
       connectTimeoutMs: row.connectTimeoutMs,
+      webProfile: normalizeProfile(row.webProfile),
+      webPort: isLocalPort(row.webPort) ? row.webPort : undefined,
     }));
 }
 
@@ -44,6 +48,8 @@ export function apply(ctx, config = {}) {
     dshHome: config.defaultDshHome ?? '$HOME/.dsh',
     provider: config.defaultProvider ?? 'deepseek-official',
     model: config.defaultModel ?? 'deepseek-flash',
+    webProfile: normalizeProfile(config.defaultWebProfile) ?? 'web',
+    webPort: isLocalPort(config.defaultWebPort) ? config.defaultWebPort : 0,
   };
   const discovered = config.discoverSshHosts === false ? [] : readSshConfig(config.sshConfigPath);
   const ignore = Array.isArray(config.ignoreSshHosts) ? config.ignoreSshHosts : [];
@@ -52,6 +58,7 @@ export function apply(ctx, config = {}) {
   const manager = createManager({ hosts, dshResolver: resolveDsh });
   const remoteFs = createRemoteFs({ hosts });
   const webChannel = createWebChannel({ hosts, resolveDsh, runRemote: sshRun });
+  const profiles = createProfiles({ hosts, runRemote: sshRun });
   const autoUpdate = config.autoUpdate === 'off' || config.autoUpdate === 'auto' ? config.autoUpdate : 'notify';
   const updater = createUpdater({ mode: autoUpdate, getManager: () => ctx.get('pluginManager') });
   const handle = createApi({
@@ -59,7 +66,14 @@ export function apply(ctx, config = {}) {
     fs: remoteFs,
     updater,
     webChannel,
-    hosts: hosts.map(({ id, label, discovered: fromConfig }) => ({ id, label, discovered: fromConfig === true })),
+    profiles,
+    hosts: hosts.map(({ id, label, discovered: fromConfig, webProfile, webPort }) => ({
+      id,
+      label,
+      discovered: fromConfig === true,
+      webProfile: webProfile ?? 'web',
+      webPort: webPort ?? 0,
+    })),
   });
   ctx.effect(
     () => ctx.webServer.register({ kind: 'prefix', path: '/remote-pure/api', handler: handle }),

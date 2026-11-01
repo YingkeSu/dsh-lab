@@ -2,6 +2,8 @@
  * Host HTTP surface of the remote panel. The browser half calls these routes
  * through the same-origin web server; each call delegates to the manager.
  */
+import { isLaunchableProfile } from './profiles.js';
+import { isLocalPort } from './tunnel.js';
 
 const MAX_BODY = 1024 * 1024;
 
@@ -44,9 +46,26 @@ const str = (body, key) => {
   return value;
 };
 
-export function createApi({ manager, hosts, fs, updater, webChannel }) {
+/** Optional remote dsh profile for `/web-open`; invalid names are a 400. */
+function profileOption(body) {
+  const value = body.profile;
+  if (value === undefined || value === null) return undefined;
+  if (!isLaunchableProfile(value)) throw Object.assign(new Error('invalid `profile`'), { status: 400 });
+  return value;
+}
+
+/** Optional local tunnel port for `/web-open`; 0 and omission both mean automatic. */
+function localPortOption(body) {
+  const value = body.localPort;
+  if (value === undefined || value === null) return undefined;
+  if (!isLocalPort(value)) throw Object.assign(new Error('invalid `localPort`'), { status: 400 });
+  return value;
+}
+
+export function createApi({ manager, hosts, fs, updater, webChannel, profiles }) {
   const routes = {
     '/hosts': async () => ({ hosts }),
+    '/profiles': async (body) => profiles.list(str(body, 'hostId')),
     '/connect': async (body) => manager.connect(str(body, 'hostId'), str(body, 'project')),
     '/disconnect': async (body) => {
       manager.disconnect(str(body, 'hostId'), str(body, 'project'));
@@ -69,7 +88,9 @@ export function createApi({ manager, hosts, fs, updater, webChannel }) {
     '/history': async (body) => ({ messages: await manager.readHistory(str(body, 'hostId'), str(body, 'project'), str(body, 'sessionId')) }),
     '/web-open': async (body) => webChannel.open(str(body, 'hostId'), {
       useTmux: body.useTmux === true,
-      attachUrl: typeof body.attachUrl === 'string' ? body.attachUrl : undefined,
+      profile: profileOption(body),
+      localPort: localPortOption(body),
+      attachUrl: typeof body.attachUrl === 'string' && body.attachUrl.trim() !== '' ? body.attachUrl : undefined,
     }),
     '/web-close': async (body) => webChannel.close(str(body, 'hostId')),
     '/update-check': async () => updater.check(),

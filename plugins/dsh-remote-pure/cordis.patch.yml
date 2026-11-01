@@ -1,6 +1,10 @@
 # Profile rows for the remote panel. `hosts` lists the SSH targets the panel
 # offers; each row needs `id` and `ssh`, and may override `dshCommand`,
-# `dshHome`, `provider`, `model` and `label`.
+# `dshHome`, `provider`, `model`, `label`, `webProfile` and `webPort`.
+# `webProfile`/`webPort` only seed the per-host defaults: the panel detects the
+# remote host's installed profiles at open time and the local tunnel port can be
+# changed in the panel. Global fallbacks are `defaultWebProfile` (web) and
+# `defaultWebPort` (0 = automatic).
 - insert:
     - id: remote-pure
       name: 'dsh-remote-pure'

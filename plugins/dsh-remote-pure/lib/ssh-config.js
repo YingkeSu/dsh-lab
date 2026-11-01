@@ -62,7 +62,8 @@ export function readSshConfig(path = join(homedir(), '.ssh', 'config')) {
 
 /**
  * Explicit profile rows win over discovered aliases with the same id; every other
- * discovered alias falls back to the deployment defaults.
+ * discovered alias falls back to the deployment defaults, including the default
+ * web profile/port used by the tunneled Web UI.
  */
 export function mergeHosts({ configured = [], discovered = [], defaults = {}, ignore = [] }) {
   const ignored = new Set(ignore);
@@ -75,6 +76,8 @@ export function mergeHosts({ configured = [], discovered = [], defaults = {}, ig
     dshHome: row.dshHome ?? defaults.dshHome,
     provider: row.provider ?? defaults.provider,
     model: row.model ?? defaults.model,
+    webProfile: row.webProfile ?? defaults.webProfile ?? 'web',
+    webPort: row.webPort ?? defaults.webPort ?? 0,
     identityFile: row.identityFile,
     sshOptions: row.sshOptions,
   }));
@@ -91,6 +94,8 @@ export function mergeHosts({ configured = [], discovered = [], defaults = {}, ig
       dshHome: defaults.dshHome,
       provider: defaults.provider,
       model: defaults.model,
+      webProfile: defaults.webProfile ?? 'web',
+      webPort: defaults.webPort ?? 0,
       discovered: true,
     });
   }

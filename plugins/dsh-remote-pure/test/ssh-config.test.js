@@ -48,3 +48,27 @@ test('mergeHosts can hide aliases from discovery', () => {
   });
   assert.deepEqual(merged.map((row) => row.id), ['macbook']);
 });
+
+test('mergeHosts passes the web profile and port defaults, letting configured rows override', () => {
+  const merged = mergeHosts({
+    configured: [
+      { id: 'macbook', ssh: 'macbook', webProfile: 'sdk', webPort: 3080 },
+      { id: 'wry', ssh: 'wry' },
+    ],
+    discovered: parseSshConfig(SAMPLE),
+    defaults: { dshCommand: 'dsh', webProfile: 'web', webPort: 0 },
+  });
+  assert.equal(merged[0].webProfile, 'sdk');
+  assert.equal(merged[0].webPort, 3080);
+  assert.equal(merged[1].webProfile, 'web');
+  assert.equal(merged[1].webPort, 0);
+  const tencent = merged.find((row) => row.id === 'tencent');
+  assert.equal(tencent.webProfile, 'web');
+  assert.equal(tencent.webPort, 0);
+});
+
+test('mergeHosts falls back to the built-in web profile and automatic port', () => {
+  const merged = mergeHosts({ configured: [{ id: 'mb', ssh: 'mb' }], discovered: [] });
+  assert.equal(merged[0].webProfile, 'web');
+  assert.equal(merged[0].webPort, 0);
+});
