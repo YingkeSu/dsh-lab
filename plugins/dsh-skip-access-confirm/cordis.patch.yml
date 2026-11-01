@@ -1,0 +1,5 @@
+# Bundle row for `dsh plugin add` style installs. The desktop/web profiles pick
+# this up through their own `cordis.patch.yml` when installed with install.sh.
+- insert:
+    - id: skip-access-confirm
+      name: 'dsh-skip-access-confirm'

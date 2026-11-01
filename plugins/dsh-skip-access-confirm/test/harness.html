@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>skip-access-confirm harness</title></head>
+<body>
+<div id="host"></div>
+<script>
+  window.__ModuleLoader__ = {
+    rows: [],
+    load: function (row) { this.rows.push(row); },
+    materialize: function () { return this.rows[0].factory(function () { throw new Error('no requires'); }); },
+    mount: function () {
+      var mod = this.materialize();
+      window.__plugin = mod;
+      mod.apply({ effect: function (fn) { fn(); return function () {}; } });
+    },
+  };
+  window.__confirmed = 0;
+  window.__canceled = 0;
+</script>
+<script src="../client.js"></script>
+<script>
+  window.__ModuleLoader__.mount();
+
+  function riskDialog(title, confirmLabel) {
+    var root = document.createElement('div');
+    root.setAttribute('role', 'presentation');
+    var dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', title);
+    var h2 = document.createElement('h2');
+    h2.textContent = title;
+    dialog.appendChild(h2);
+    var label = document.createElement('label');
+    var box = document.createElement('input');
+    box.type = 'checkbox';
+    label.appendChild(box);
+    label.appendChild(document.createTextNode('I understand the risks and want to continue'));
+    dialog.appendChild(label);
+    var enable = document.createElement('button');
+    enable.textContent = confirmLabel;
+    enable.disabled = true;
+    box.addEventListener('change', function () { enable.disabled = !box.checked; });
+    var cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', function () { window.__canceled += 1; dialog.remove(); });
+    enable.addEventListener('click', function () {
+      window.__confirmed += 1;
+      dialog.remove();
+    });
+    var footer = document.createElement('div');
+    footer.appendChild(cancel);
+    footer.appendChild(enable);
+    dialog.appendChild(footer);
+    root.appendChild(dialog);
+    return root;
+  }
+
+  window.openRisk = function (title) { document.body.appendChild(riskDialog(title, title.indexOf('Auto') >= 0 ? 'Enable Auto review' : 'Enable Full access')); };
+  window.openOther = function (title) { document.body.appendChild(riskDialog(title, 'Delete')); };
+</script>
+</body>
+</html>

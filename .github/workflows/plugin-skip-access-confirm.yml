@@ -1,0 +1,31 @@
+name: plugin-skip-access-confirm
+
+on:
+  push:
+    paths:
+      - 'plugins/dsh-skip-access-confirm/**'
+      - '.github/workflows/plugin-skip-access-confirm.yml'
+  pull_request:
+    paths:
+      - 'plugins/dsh-skip-access-confirm/**'
+      - '.github/workflows/plugin-skip-access-confirm.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/dsh-skip-access-confirm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test manifest and bundle
+        run: node --test test/*.test.mjs
+      - name: Check JavaScript syntax
+        run: |
+          node --check index.js
+          node --check client.js
+      - name: Check published files
+        run: npm pack --dry-run

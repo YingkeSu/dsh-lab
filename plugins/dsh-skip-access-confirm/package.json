@@ -1,0 +1,63 @@
+{
+  "name": "dsh-skip-access-confirm",
+  "version": "0.1.0",
+  "description": "Skip the Web GUI risk acknowledgement when switching a DeepSeek Harness session to Full access or Auto review.",
+  "type": "module",
+  "main": "index.js",
+  "icon": "icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "publish:auto": "node scripts/publish.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.0 <0.3.0"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "permission",
+    "full-access",
+    "auto-review",
+    "approval",
+    "web-ui"
+  ],
+  "author": "YingkeSu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YingkeSu/dsh-lab.git",
+    "directory": "plugins/dsh-skip-access-confirm"
+  },
+  "homepage": "https://github.com/YingkeSu/dsh-lab/tree/main/plugins/dsh-skip-access-confirm#readme",
+  "bugs": {
+    "url": "https://github.com/YingkeSu/dsh-lab/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
