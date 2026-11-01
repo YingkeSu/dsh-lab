@@ -1,0 +1,140 @@
+{
+  "format": 1,
+  "title": "dsh-lab plugins",
+  "description": "Plugins maintained in the dsh-lab repository",
+  "plugins": [
+    {
+      "name": "dsh-skip-access-confirm",
+      "title": {
+        "en": "Skip access confirmation",
+        "zh": "跳过权限确认"
+      },
+      "description": {
+        "en": "One-click switching to Full access and Auto review: confirms the Web GUI risk acknowledgement for you.",
+        "zh": "一键切换完全权限与自动审查：自动完成 Web 界面的风险确认。"
+      },
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4IiB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJTa2lwIGFjY2VzcyBjb25maXJtYXRpb24iPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMxZjZmZWIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMGIzZDkxIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJzaGllbGQiIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmZmZmIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2RiZWFmZSIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIHJ4PSIyOCIgZmlsbD0idXJsKCNiZykiLz4KICA8cGF0aCBkPSJNNjQgMjRsMzAgMTB2MjJjMCAyMC0xMi41IDM3LjUtMzAgNDQtMTcuNS02LjUtMzAtMjQtMzAtNDRWMzRsMzAtMTB6IiBmaWxsPSJ1cmwoI3NoaWVsZCkiIG9wYWNpdHk9IjAuOTUiLz4KICA8cGF0aCBkPSJNNDkgNjNsMTAuNSAxMUw4MCA1NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMTU1N2MwIiBzdHJva2Utd2lkdGg9IjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik05MiAzMGwtMTYgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzdkZDNmYyIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9zdmc+Cg==",
+      "author": "YingkeSu",
+      "homepage": "https://github.com/YingkeSu/dsh-lab/tree/main/plugins/dsh-skip-access-confirm#readme",
+      "repository": {
+        "url": "https://github.com/YingkeSu/dsh-lab",
+        "directory": "plugins/dsh-skip-access-confirm"
+      },
+      "metadata": {
+        "keywords": [
+          "dsh",
+          "dsh-plugin",
+          "deepseek-harness",
+          "permission",
+          "full-access",
+          "auto-review",
+          "approval",
+          "web-ui"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793542521,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.0 <0.3.0"
+          }
+        }
+      ]
+    },
+    {
+      "name": "dsh-remote-pure",
+      "title": {
+        "en": "Remote Pure",
+        "zh": "Remote Pure"
+      },
+      "description": {
+        "en": "Control a remote DeepSeek Harness project over SSH, with on-demand session history.",
+        "zh": "通过 SSH 控制远端 DeepSeek Harness 项目，按需读取远端会话历史。"
+      },
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMS43IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPgogIDxyZWN0IHg9IjIuNSIgeT0iNC41IiB3aWR0aD0iMTkiIGhlaWdodD0iMTIiIHJ4PSIyIi8+CiAgPHBhdGggZD0iTTggMjAuNWg4Ii8+CiAgPHBhdGggZD0iTTEyIDE2LjV2NCIvPgogIDxwYXRoIGQ9Ik03LjUgOS4yaDQuMmEyLjMgMi4zIDAgMCAxIDAgNC42SDkuNCIvPgogIDxwYXRoIGQ9Ik05LjQgMTMuOCA3LjYgMTUuNmwxLjggMS44Ii8+Cjwvc3ZnPgo=",
+      "repository": {
+        "url": "https://github.com/YingkeSu/dsh-lab",
+        "directory": "plugins/dsh-remote-pure"
+      },
+      "metadata": {
+        "keywords": [
+          "dsh",
+          "dsh-plugin",
+          "deepseek-harness",
+          "remote",
+          "ssh",
+          "sdk"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.14.0",
+          "publishTimestamp": 1793540485,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.13.0",
+          "publishTimestamp": 1793428655,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.12.1",
+          "publishTimestamp": 1792573983,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.12.0",
+          "publishTimestamp": 1792572882,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.11.1",
+          "publishTimestamp": 1792561145,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.11.0",
+          "publishTimestamp": 1792559797,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.10.2",
+          "publishTimestamp": 1792508922,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.10.1",
+          "publishTimestamp": 1792486906,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
+          "version": "0.10.0",
+          "publishTimestamp": 1792308368,
+          "source": {
+            "type": "npm"
+          }
+        }
+      ]
+    }
+  ]
+}
