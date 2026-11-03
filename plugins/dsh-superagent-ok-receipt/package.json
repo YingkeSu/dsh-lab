@@ -1,0 +1,31 @@
+{
+  "name": "dsh-superagent-ok-receipt",
+  "version": "0.1.0",
+  "description": "OK reaction receipts for messages dsh-superagent receives: a source patch for dsh-superagent.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "apply": "node scripts/apply.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-superagent",
+    "deepseek-harness",
+    "feishu",
+    "reaction",
+    "receipt",
+    "patch"
+  ],
+  "author": "YingkeSu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YingkeSu/dsh-lab.git",
+    "directory": "plugins/dsh-superagent-ok-receipt"
+  },
+  "homepage": "https://github.com/YingkeSu/dsh-lab/tree/main/plugins/dsh-superagent-ok-receipt#readme",
+  "bugs": {
+    "url": "https://github.com/YingkeSu/dsh-lab/issues"
+  }
+}

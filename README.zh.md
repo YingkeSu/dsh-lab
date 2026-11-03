@@ -8,6 +8,7 @@
 |---|---|---|
 | [dsh-skip-access-confirm](plugins/dsh-skip-access-confirm) | `dsh-skip-access-confirm` | 一键切换「完全权限」与「自动审查」：自动完成 Web 界面的风险确认。 |
 | [dsh-remote-pure](plugins/dsh-remote-pure) | `dsh-remote-pure` | 通过 SSH 控制远端 DeepSeek Harness 项目，按需读取远端会话历史。 |
+| [dsh-superagent-ok-receipt](plugins/dsh-superagent-ok-receipt) | — | 给 dsh-superagent 收到的人的消息加 OK（👌）表情回执：以 `dsh-superagent` 源码补丁分发。 |
 
 ## 插件索引
 
@@ -19,10 +20,12 @@ https://raw.githubusercontent.com/YingkeSu/dsh-lab/main/market/index.json
 
 ## 开发
 
-`plugins/` 下每个目录都是独立的 npm 包，各自带 README、测试和 `cordis.patch.yml` 组合包层。从源码安装一个插件：
+`plugins/` 下每个目录都是独立的 npm 包，各自带 README 和测试。可安装的插件还带 `cordis.patch.yml` 组合包层，从源码安装：
 
 ```sh
 dsh plugin --profile <profile> add ./plugins/<name>
 ```
+
+`dsh-superagent-ok-receipt` 以源码补丁分发而不是组合包，应用步骤见它的 README。
 
 插件索引由 DSH 官方参考生成器生成，用法见 [market/README.md](market/README.md)。
