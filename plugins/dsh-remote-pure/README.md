@@ -130,12 +130,17 @@ start the chosen profile from `dshCommand`.
 
 | value | behavior |
 |---|---|
-| `notify` (default) | the panel shows a `新版本 x.y.z` button; clicking copies `dsh plugin --profile <profile> add dsh-remote-pure@latest` |
-| `auto` | the same check attempts the install through the Host's PluginManager; HMR-managed profiles may answer "restart required" and fall back to the copied command |
-| `off` | no registry check at all |
+| `notify` (default) | the panel shows an `更新到 x.y.z` button; clicking it uninstalls the installed copy and installs the latest release through the Host PluginManager |
+| `auto` | accepted as an alias: the same button, still waiting for the click — nothing is installed silently |
+| `off` | no registry check and no button |
 
-The check reuses the Host PluginManager's registry access when present and falls back to a direct
-`registry.npmjs.org` read, cached for one hour. It never installs silently without `auto`.
+The update follows the Plugins page order: `removeBundle` first, then
+`installBundle`, because installing over an already-installed package is refused while HMR is on.
+An HMR-managed profile applies the new version live; otherwise the result says a restart is needed.
+When the manager refuses the update, the button falls back to copying
+`dsh plugin --profile <profile> add dsh-remote-pure@latest`. The check reuses the Host
+PluginManager's registry access when present and falls back to a direct `registry.npmjs.org` read,
+cached for one hour.
 
 ## Panel
 
