@@ -17,6 +17,10 @@ export function createWebChannel({
 }) {
   const byId = new Map(hosts.map((host) => [host.id, host]));
   const channels = new Map();
+  // An open is several awaits long (dsh detection, remote start, tunnel); a
+  // second click or the panel's own remount must join that attempt instead of
+  // starting a second remote server.
+  const pending = new Map();
 
   const target = (hostId) => {
     const found = byId.get(hostId);
@@ -27,6 +31,14 @@ export function createWebChannel({
   async function open(hostId, options = {}) {
     const existing = channels.get(hostId);
     if (existing !== undefined) return existing.info;
+    const inflight = pending.get(hostId);
+    if (inflight !== undefined) return inflight;
+    const attempt = openChannel(hostId, options).finally(() => pending.delete(hostId));
+    pending.set(hostId, attempt);
+    return attempt;
+  }
+
+  async function openChannel(hostId, options) {
     const host = target(hostId);
     const external = typeof options.attachUrl === 'string' && options.attachUrl.trim() !== '';
     const localPort = options.localPort ?? host.webPort ?? 0;

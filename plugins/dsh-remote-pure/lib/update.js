@@ -1,8 +1,9 @@
 /**
- * Optional self-update check. The plugin never installs silently: `notify`
- * only reports a newer npm version, and `auto` attempts the install through the
- * Host's own PluginManager (which can still answer "restart required" or fall
- * back to a manual command when the profile is HMR-managed).
+ * Optional self-update check and update. The panel never updates silently: a
+ * newer npm version shows an update button, and its click removes the installed
+ * copy before installing the latest release through the Host's own
+ * PluginManager (the order the Plugins page uses). The manager can still answer
+ * "restart required" or refuse, in which case the manual command is offered.
  */
 import { createRequire } from 'node:module';
 
@@ -72,14 +73,40 @@ export function createUpdater({
 
   async function apply() {
     const state = await check();
-    if (state.mode !== 'auto' || !state.updateAvailable) return { ...state, application: 'skipped' };
+    if (state.mode === 'off' || !state.updateAvailable) return { ...state, application: 'skipped' };
     const manager = getManager();
     if (manager === undefined || typeof manager.installBundle !== 'function') return { ...state, application: 'manual', command };
+    // The Plugins page removes an installed bundle before installing another
+    // version. With HMR that removal is also what lets the install proceed:
+    // `installBundle` refuses an already-installed package while HMR is on.
+    let removal = null;
+    if (typeof manager.removeBundle === 'function') {
+      try {
+        removal = await manager.removeBundle(pkg.name);
+      } catch (error) {
+        removal = { application: 'failed', error: { code: 'operation-error', diagnostic: error instanceof Error ? error.message : String(error) } };
+      }
+    }
     try {
       const result = await manager.installBundle(`${pkg.name}@${state.latest}`);
-      return { ...state, application: result?.application ?? 'unknown', restartReason: result?.restartReason };
+      const application = result?.application ?? 'unknown';
+      if (application === 'applied' || application === 'restart-required') {
+        return {
+          ...state,
+          application,
+          removal: removal?.application ?? 'skipped',
+          restartReason: result?.restartReason ?? removal?.restartReason,
+        };
+      }
+      return { ...state, application: 'manual', removal: removal?.application ?? 'skipped', command, error: result?.error ?? removal?.error };
     } catch (error) {
-      return { ...state, application: 'manual', command, error: error.message };
+      return {
+        ...state,
+        application: 'manual',
+        removal: removal?.application ?? 'skipped',
+        command,
+        error: { code: 'operation-error', diagnostic: error instanceof Error ? error.message : String(error) },
+      };
     }
   }
 

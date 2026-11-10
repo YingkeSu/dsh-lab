@@ -96,6 +96,40 @@ test('an open channel is cached and new parameters are ignored', async () => {
   await channel.close('mb');
 });
 
+test('concurrent opens share one remote start and one tunnel', async () => {
+  const { channel, calls } = fixture();
+  const [first, second] = await Promise.all([
+    channel.open('mb', {}),
+    channel.open('mb', { profile: 'sdk', localPort: 3095 }),
+  ]);
+  assert.equal(first, second);
+  assert.equal(calls.filter((call) => call[0] === 'start').length, 1);
+  assert.equal(calls.filter((call) => call[0] === 'tunnel').length, 1);
+  await channel.close('mb');
+});
+
+test('a failed open does not poison the next attempt', async () => {
+  let attempts = 0;
+  const channel = createWebChannel({
+    hosts: [{ id: 'mb', ssh: 'macbook' }],
+    resolveDsh: async () => '/fake/dsh',
+    runRemote: async () => '',
+    remoteWeb: {
+      start: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('remote dsh web did not report a URL in time');
+        return { port: 4000, token: 'tok', tmux: true };
+      },
+      stop: async () => {},
+    },
+    tunnel: async () => ({ localPort: 5500, close: () => {} }),
+  });
+  await assert.rejects(channel.open('mb', {}), /did not report a URL/);
+  const info = await channel.open('mb', {});
+  assert.equal(info.url, 'http://127.0.0.1:5500/?token=tok');
+  assert.equal(attempts, 2);
+});
+
 test('an attachUrl that is not a token URL is rejected', async () => {
   const { channel, calls } = fixture();
   await assert.rejects(channel.open('mb', { attachUrl: 'http://example.com/' }), /attachUrl must look like/);

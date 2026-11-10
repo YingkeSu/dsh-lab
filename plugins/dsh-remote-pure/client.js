@@ -348,6 +348,8 @@ window.__ModuleLoader__.load({
       var historySeq = react.useRef(0);
       var updatePair = react.useState(null);
       var updateInfo = updatePair[0], setUpdateInfo = updatePair[1];
+      var updateBusyPair = react.useState(false);
+      var updateBusy = updateBusyPair[0], setUpdateBusy = updateBusyPair[1];
       var notePair = react.useState('');
       var updateNote = notePair[0], setUpdateNote = notePair[1];
       var webPair = react.useState(null);
@@ -504,18 +506,27 @@ window.__ModuleLoader__.load({
       }
 
       function handleUpdate() {
-        if (updateInfo === null) return;
-        if (updateInfo.mode === 'auto') {
-          api('/update', {}).then(function (result) {
-            if (result.application === 'manual') copyCommand(result.command || updateInfo.command || '');
-            setUpdateNote(result.application === 'applied' ? '已更新' : (result.application === 'restart-required' ? '已安装，重启后生效' : '已复制更新命令'));
+        if (updateInfo === null || updateBusy) return;
+        var info = updateInfo;
+        setUpdateBusy(true);
+        setUpdateNote('正在卸载并安装 v' + info.latest + '…');
+        // The host half removes the installed copy first and then installs the
+        // latest release, the order the Plugins page uses.
+        api('/update', {}).then(function (result) {
+          if (result.application === 'applied' || result.application === 'restart-required') {
             setUpdateInfo(null);
-          }).catch(function (e) { setUpdateNote('更新失败：' + e.message); });
-          return;
-        }
-        copyCommand(updateInfo.command || '');
-        setUpdateNote('已复制更新命令');
-        setUpdateInfo(null);
+            setUpdateNote(result.application === 'applied' ? '已更新，刷新页面生效' : '已安装，重启 DSH 后生效');
+            return;
+          }
+          var detail = result.error && (result.error.diagnostic || result.error.code);
+          copyCommand(result.command || info.command || '');
+          setUpdateNote(detail ? '更新未完成（' + detail + '），已复制命令' : '更新未完成，已复制命令');
+        }).catch(function (e) {
+          copyCommand(info.command || '');
+          setUpdateNote('更新失败：' + e.message + '（已复制命令）');
+        }).finally(function () {
+          setUpdateBusy(false);
+        });
       }
 
       function toggleTmux(value) {
@@ -968,7 +979,12 @@ window.__ModuleLoader__.load({
           channelUrl === '' ? null : react.createElement('button', { className: 'rp-btn', title: '重新加载 iframe', onClick: reloadFrame }, '刷新'),
           react.createElement('span', { className: 'rp-status', title: channelStatus }, channelStatus),
           profileHint === '' ? null : react.createElement('span', { className: 'rp-note', title: profileHint }, profileHint),
-          updateInfo === null ? null : react.createElement('button', { className: 'rp-btn', title: updateInfo.command || '', onClick: handleUpdate }, '新版本 ' + updateInfo.latest),
+          updateInfo === null ? null : react.createElement('button', {
+            className: 'rp-btn',
+            title: '卸载当前版本并安装 v' + updateInfo.latest + '（失败时复制命令）',
+            disabled: updateBusy,
+            onClick: handleUpdate,
+          }, updateBusy ? '更新中…' : '更新到 ' + updateInfo.latest),
           updateNote === '' ? null : react.createElement('span', { className: 'rp-status' }, updateNote),
           react.createElement(
             'div',
