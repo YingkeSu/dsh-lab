@@ -117,8 +117,12 @@ token URL in a normal tab.
 
 **tmux option**: the `tmux` checkbox starts the remote server inside a tmux session
 (`dsh-remote-pure-<host>`), so a transient SSH drop does not kill it; the tunnel is then re-established
-on the same local port. When the remote host has no tmux the plugin falls back to `nohup` and reports
-that in the panel. The remote `dsh` must be able to start the chosen profile from `dshCommand`.
+on the same local port. The host half checks that session before creating it: a session whose
+`web.log` still carries a token URL and whose remote port answers is reused (reported as
+`已复用远端已在运行的 dsh web`), while a stale session is killed and replaced, so a local GUI restart
+or a failed tunnel never collides with the plugin's own earlier server. When the remote host has no
+tmux the plugin falls back to `nohup` and reports that in the panel. The remote `dsh` must be able to
+start the chosen profile from `dshCommand`.
 
 ## Optional auto-update
 

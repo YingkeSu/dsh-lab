@@ -1,6 +1,6 @@
 {
   "name": "dsh-remote-pure",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "description": "Control a remote DeepSeek Harness project over SSH: remote runtime, local panel, on-demand history.",
   "type": "module",
   "main": "index.js",
